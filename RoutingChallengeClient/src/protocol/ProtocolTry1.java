@@ -66,6 +66,7 @@ public class ProtocolTry1 implements IRoutingProtocol {
 		
 		for (int key : fTable.keySet()) {
 			if (fTable.get(key).tick - tickcounter > 2) {
+				System.out.println("Remove ");
 				fTable.remove(key);
 			}
 		}
