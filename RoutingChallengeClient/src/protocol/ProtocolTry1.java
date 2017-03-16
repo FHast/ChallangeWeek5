@@ -18,12 +18,15 @@ public class ProtocolTry1 implements IRoutingProtocol {
 	private HashMap<Integer, SmartRoute> fTable = new HashMap<>();
 	private ArrayList<Integer> neighbours = new ArrayList<Integer>();
 	private int myAddress;
+	private boolean changed = false;
+	private int tickcounter = 0;
 
 	@Override
 	public void init(LinkLayer linkLayer) {
 		this.linkLayer = linkLayer;
 		myAddress = linkLayer.getOwnAddress();
-		fTable.put(myAddress, new SmartRoute(myAddress, 0, LocalTime.now()));
+		System.out.println("[NEW]Adding route: dest = " + myAddress + ", totalcost = " + 0 + ", link =" + myAddress);
+		fTable.put(myAddress, new SmartRoute(myAddress, 0, tickcounter));
 		DataTable dt = new DataTable(2);
 		dt.addRow(new Integer[] { myAddress, 0 });
 		Packet p = new Packet(myAddress, 0, dt);
@@ -45,16 +48,29 @@ public class ProtocolTry1 implements IRoutingProtocol {
 
 		// Send packets
 
-		for (int i = 0; i < neighbours.size() - 1; i++) {
-			DataTable vector = new DataTable(2);
-			for (int dest : fTable.keySet()) {
-				if (dest != neighbours.get(i)) {
-					vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
+		if (changed) {
+			for (int i = 0; i < neighbours.size(); i++) {
+				DataTable vector = new DataTable(2);
+				for (int dest : fTable.keySet()) {
+					if (dest != neighbours.get(i)) {
+						vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
+					}
 				}
+				Packet p = new Packet(myAddress, neighbours.get(i), vector);
+				linkLayer.transmit(p);
 			}
-			Packet p = new Packet(myAddress, neighbours.get(i), vector);
-			linkLayer.transmit(p);
+			changed = false;
 		}
+		
+		// Check entries
+		
+		for (int key : fTable.keySet()) {
+			if (fTable.get(key).tick - tickcounter > 2) {
+				fTable.remove(key);
+			}
+		}
+		
+		tickcounter++;
 	}
 
 	private void received(DataTable dt, int neighbour) {
@@ -67,16 +83,18 @@ public class ProtocolTry1 implements IRoutingProtocol {
 				// new Route
 				System.out.println(
 						"[NEW]Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
-				SmartRoute r = new SmartRoute(neighbour, totalcost, LocalTime.now());
+				SmartRoute r = new SmartRoute(neighbour, totalcost, tickcounter);
 				fTable.put(dest, r);
+				changed = true;
 			} else {
 				// existing Route, is new better?
 				if (totalcost < fTable.get(dest).cost || fTable.get(dt.get(i, 0)).link == neighbour) {
 					// better Route, change current route!
-					System.out.println(
-							"[EXISTING]Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
-					SmartRoute r = new SmartRoute(neighbour, totalcost, LocalTime.now());
+					System.out.println("[EXISTING]Adding route: dest = " + dest + ", totalcost = " + totalcost
+							+ ", link =" + neighbour);
+					SmartRoute r = new SmartRoute(neighbour, totalcost, tickcounter);
 					fTable.put(dest, r);
+					changed = true;
 				}
 			}
 		}

@@ -9,11 +9,11 @@ import java.time.LocalTime;
 public class SmartRoute {
     public int link;
     public int cost;
-    public LocalTime time;
+    public int tick;
     
-    public SmartRoute(int l, int c, LocalTime t) {
+    public SmartRoute(int l, int c, int t) {
     	link = l;
     	cost = c;
-    	time = t;
+    	tick = t;
     }
 }
