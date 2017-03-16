@@ -1,6 +1,5 @@
 package protocol;
 
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,21 +12,24 @@ import client.Packet;
 public class ProtocolTry3 implements IRoutingProtocol {
 	private LinkLayer linkLayer;
 
-	// You can use this data structure to store your forwarding table with extra
-	// information.
 	private HashMap<Integer, SmartRoute> fTable = new HashMap<>();
-	private ArrayList<Integer> neighbours = new ArrayList<Integer>();
+	private ArrayList<Integer> neighbors = new ArrayList<Integer>();
 	private int myAddress;
 	private int tickcounter = 0;
 
 	@Override
 	public void init(LinkLayer linkLayer) {
+		
+		// Put own link in forwarding table.
 		this.linkLayer = linkLayer;
-		myAddress = linkLayer.getOwnAddress();
-		System.out.println("[NEW]Adding route: dest = " + myAddress + ", totalcost = " + 0 + ", link =" + myAddress);
+		myAddress = linkLayer.getOwnAddress();		
 		fTable.put(myAddress, new SmartRoute(myAddress, 0, tickcounter));
+		
+		// Put own link in data table.
 		DataTable dt = new DataTable(2);
 		dt.addRow(new Integer[] { myAddress, 0 });
+		
+		// Transmit data table to everyone.
 		Packet p = new Packet(myAddress, 0, dt);
 		linkLayer.transmit(p);
 	}
@@ -37,81 +39,90 @@ public class ProtocolTry3 implements IRoutingProtocol {
 
 		// Check incoming packets / update fTable
 		for (Packet p : packets) {
-			int neighbour = p.getSourceAddress();
-			if (!neighbours.contains(neighbour)) {
-				neighbours.add(neighbour);
+			int neighbor = p.getSourceAddress();
+			if (!neighbors.contains(neighbor)) {
+				// New neighbor / neighbor is not listed yet.
+				neighbors.add(neighbor);
 			}
-			received(p.getDataTable(), neighbour);
+			// Analyze received data.
+			received(p.getDataTable(), neighbor);
 		}
 
-		for (int i = 0; i < neighbours.size(); i++) {
-			if (linkLayer.getLinkCost(neighbours.get(i)) == -1) {
-				System.out.println("Removing " + neighbours.get(i) + "from neighbours.");
-				neighbours.remove(i);
+		// Check connections to neighbors.
+		for (int i = 0; i < neighbors.size(); i++) {
+			if (linkLayer.getLinkCost(neighbors.get(i)) == -1) {
+				// Connection to neighbor is broken, he gets removed.
+				neighbors.remove(i);
 			}
 		}
+		
+		// Refresh old data.
 		ArrayList<Integer> deletelist = new ArrayList<Integer>();
 		for (int key : fTable.keySet()) {
-			if (!neighbours.contains(fTable.get(key).link) && key != myAddress) {
+			if (!neighbors.contains(fTable.get(key).link) && key != myAddress) {
+				// There are still forwarding tables using broken connections.
 				deletelist.add(key);
 				fTable.get(key).cost = 99999999;
 			}
 		}
 
-		// Check entries
-
+		// Check entries.
 		for (int key : fTable.keySet()) {
 			if (tickcounter - (fTable.get(key).tick) >= 1 && key != myAddress) {
-				System.out.println("Entry Expired. ");
+				// Entry is expired, needs to be reset. 
 				fTable.get(key).cost = 99999999;
 				deletelist.add(key);
 			}
 		}
 
-		// Send packets
-
-		for (int neighbour : neighbours) {
+		// Send packets.
+		for (int neighbor : neighbors) {
+			// Initialize vector.
 			DataTable vector = new DataTable(2);
 			for (int dest : fTable.keySet()) {
-				if (dest != neighbour) {
-					if (fTable.get(dest).link == neighbour) {
+				if (dest != neighbor) {
+					// Fill vector.
+					if (fTable.get(dest).link == neighbor) {
+						// Poison reverse.
 						vector.addRow(new Integer[] { dest, 10000000 });
 					} else {
+						// Normal transmission, no poison reverse.
 						vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
 					}
 				}
 			}
-			Packet p = new Packet(myAddress, neighbour, vector);
+			// Transmit only to neighbor, split horizon.
+			Packet p = new Packet(myAddress, neighbor, vector);
 			linkLayer.transmit(p);
 		}
+		// Transmit connection to itself.
 		DataTable dt = new DataTable(2);
 		dt.addRow(new Integer[] { myAddress, 0 });
 		Packet p = new Packet(myAddress, 0, dt);
 		linkLayer.transmit(p);
 
-		// deleting expired entries
-
+		// deleting expired entries.
 		for (int key : deletelist) {
 			if (key != myAddress) {
-				System.out.println("Removing: " + key);
 				fTable.remove(key);
 			}
 		}
 
+		// Increase tickcounter to detect expired entries.
 		tickcounter++;
 	}
 
 	private void received(DataTable dt, int neighbour) {
-		// received Vector dt from link neightbour
+		// received Vector dt from link neighbour.
 		int linkcost = linkLayer.getLinkCost(neighbour);
 		for (int i = 0; i < dt.getNRows(); i++) {
 			int dest = dt.get(i, 0);
 			int totalcost = linkcost + dt.get(i, 1);
+			// Check if route is better than saved one.
 			if (!fTable.containsKey(dest) || totalcost <= fTable.get(dest).cost || fTable.get(dest).link == neighbour) {
-				// new Route
-				System.out.println(
-						"Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
+				// new Route.
 				SmartRoute r = new SmartRoute(neighbour, totalcost, tickcounter);
+				// update forwarding table.
 				fTable.put(dest, r);
 			}
 		}
