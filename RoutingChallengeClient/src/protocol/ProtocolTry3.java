@@ -10,7 +10,7 @@ import client.IRoutingProtocol;
 import client.LinkLayer;
 import client.Packet;
 
-public class ProtocolTry2 implements IRoutingProtocol {
+public class ProtocolTry3 implements IRoutingProtocol {
 	private LinkLayer linkLayer;
 
 	// You can use this data structure to store your forwarding table with extra
@@ -54,16 +54,12 @@ public class ProtocolTry2 implements IRoutingProtocol {
 		for (int key : fTable.keySet()) {
 			if  (!neighbours.contains(fTable.get(key).link) && key != myAddress) {
 				deletelist.add(key);
+				fTable.get(key).cost = 99999999;
 			}
-		}
-		for (int key : deletelist) {
-			System.out.println("Removing forwardTable entry...");
-			fTable.remove(key);
 		}
 		
 		// Check entries
 
-		deletelist = new ArrayList<Integer>();
 		for (int key : fTable.keySet()) {
 			if (tickcounter - (fTable.get(key).tick) >= 1 && key != myAddress) {
 				System.out.println("Entry Expired. ");
