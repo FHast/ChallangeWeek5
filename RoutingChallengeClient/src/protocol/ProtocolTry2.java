@@ -10,7 +10,7 @@ import client.IRoutingProtocol;
 import client.LinkLayer;
 import client.Packet;
 
-public class ProtocolTry1 implements IRoutingProtocol {
+public class ProtocolTry2 implements IRoutingProtocol {
 	private LinkLayer linkLayer;
 
 	// You can use this data structure to store your forwarding table with extra
@@ -45,17 +45,42 @@ public class ProtocolTry1 implements IRoutingProtocol {
 			received(p.getDataTable(), neighbour);
 		}
 
+		// Check entries
+
+		ArrayList<Integer> deletelist = new ArrayList<Integer>();
+		for (int key : fTable.keySet()) {
+			if (tickcounter - (fTable.get(key).tick) >= 1 && key != myAddress) {
+				System.out.println("Entry Expired. ");
+				fTable.get(key).cost = 99999999;
+				deletelist.add(key);
+			}
+		}
+
 		// Send packets
 
-		for (int i = 0; i < neighbours.size(); i++) {
+		for (int neighbour : neighbours) {
 			DataTable vector = new DataTable(2);
 			for (int dest : fTable.keySet()) {
-				if (dest != neighbours.get(i)) {
+				if (dest != neighbour) {
 					vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
 				}
 			}
-			Packet p = new Packet(myAddress, neighbours.get(i), vector);
+			Packet p = new Packet(myAddress, neighbour, vector);
 			linkLayer.transmit(p);
+		}
+		DataTable dt = new DataTable(2);
+		dt.addRow(new Integer[] { myAddress, 0 });
+		Packet p = new Packet(myAddress, 0, dt);
+		linkLayer.transmit(p);
+		
+
+		// deleting expired entries
+
+		for (int key : deletelist) {
+			if (key != myAddress) {
+				System.out.println("Removing: " + key);
+				fTable.remove(key);
+			}
 		}
 
 		tickcounter++;
@@ -63,25 +88,16 @@ public class ProtocolTry1 implements IRoutingProtocol {
 
 	private void received(DataTable dt, int neighbour) {
 		// received Vector dt from link neightbour
-		int cost = linkLayer.getLinkCost(neighbour);
+		int linkcost = linkLayer.getLinkCost(neighbour);
 		for (int i = 0; i < dt.getNRows(); i++) {
 			int dest = dt.get(i, 0);
-			int totalcost = cost + dt.get(i, 1);
-			if (!fTable.containsKey(dest)) {
+			int totalcost = linkcost + dt.get(i, 1);
+			if (!fTable.containsKey(dest) || totalcost < fTable.get(dest).cost || fTable.get(dest).link == neighbour) {
 				// new Route
 				System.out.println(
-						"[NEW]Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
+						"Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
 				SmartRoute r = new SmartRoute(neighbour, totalcost, tickcounter);
 				fTable.put(dest, r);
-			} else {
-				// existing Route, is new better?
-				if (totalcost < fTable.get(dest).cost || fTable.get(dt.get(i, 0)).link == neighbour) {
-					// better Route, change current route!
-					System.out.println("[EXISTING]Adding route: dest = " + dest + ", totalcost = " + totalcost
-							+ ", link =" + neighbour);
-					SmartRoute r = new SmartRoute(neighbour, totalcost, tickcounter);
-					fTable.put(dest, r);
-				}
 			}
 		}
 	}
