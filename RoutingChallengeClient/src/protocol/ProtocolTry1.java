@@ -23,6 +23,11 @@ public class ProtocolTry1 implements IRoutingProtocol {
 	public void init(LinkLayer linkLayer) {
 		this.linkLayer = linkLayer;
 		myAddress = linkLayer.getOwnAddress();
+		fTable.put(myAddress, new SmartRoute(myAddress, 0, LocalTime.now()));
+		DataTable dt = new DataTable(2);
+		dt.addRow(new Integer[] { myAddress, 0 });
+		Packet p = new Packet(myAddress, 0, dt);
+		linkLayer.transmit(p);
 	}
 
 	@Override
@@ -41,30 +46,37 @@ public class ProtocolTry1 implements IRoutingProtocol {
 		// Send packets
 
 		for (int i = 0; i < neighbours.size() - 1; i++) {
-			DataTable vector = new DataTable(fTable.size() - 1);
+			DataTable vector = new DataTable(2);
 			for (int dest : fTable.keySet()) {
 				if (dest != neighbours.get(i)) {
 					vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
 				}
 			}
-			Packet p = new Packet(myAddress, neighbours.get(1), vector);
+			Packet p = new Packet(myAddress, neighbours.get(i), vector);
 			linkLayer.transmit(p);
 		}
 	}
 
 	private void received(DataTable dt, int neighbour) {
 		// received Vector dt from link neightbour
-		System.out.println("Received vector " + dt.toString() + " from link " + neighbour);
 		int cost = linkLayer.getLinkCost(neighbour);
 		for (int i = 0; i < dt.getNRows(); i++) {
-			if (!fTable.containsKey(dt.get(i, 0))) {
+			int dest = dt.get(i, 0);
+			int totalcost = cost + dt.get(i, 1);
+			if (!fTable.containsKey(dest)) {
 				// new Route
-				SmartRoute r = new SmartRoute(neighbour, cost + dt.get(i, 1), LocalTime.now());
+				System.out.println(
+						"[NEW]Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
+				SmartRoute r = new SmartRoute(neighbour, totalcost, LocalTime.now());
+				fTable.put(dest, r);
 			} else {
 				// existing Route, is new better?
-				if (cost + dt.get(i, 1) < fTable.get(dt.get(i, 0)).cost || fTable.get(dt.get(i, 0)).link == neighbour) {
+				if (totalcost < fTable.get(dest).cost || fTable.get(dt.get(i, 0)).link == neighbour) {
 					// better Route, change current route!
-					SmartRoute r = new SmartRoute(neighbour, cost + dt.get(i, 1), LocalTime.now());
+					System.out.println(
+							"[EXISTING]Adding route: dest = " + dest + ", totalcost = " + totalcost + ", link =" + neighbour);
+					SmartRoute r = new SmartRoute(neighbour, totalcost, LocalTime.now());
+					fTable.put(dest, r);
 				}
 			}
 		}
