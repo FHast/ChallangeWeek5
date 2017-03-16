@@ -43,7 +43,7 @@ public class ProtocolTry3 implements IRoutingProtocol {
 			}
 			received(p.getDataTable(), neighbour);
 		}
-		
+
 		for (int i = 0; i < neighbours.size(); i++) {
 			if (linkLayer.getLinkCost(neighbours.get(i)) == -1) {
 				System.out.println("Removing " + neighbours.get(i) + "from neighbours.");
@@ -52,12 +52,12 @@ public class ProtocolTry3 implements IRoutingProtocol {
 		}
 		ArrayList<Integer> deletelist = new ArrayList<Integer>();
 		for (int key : fTable.keySet()) {
-			if  (!neighbours.contains(fTable.get(key).link) && key != myAddress) {
+			if (!neighbours.contains(fTable.get(key).link) && key != myAddress) {
 				deletelist.add(key);
 				fTable.get(key).cost = 99999999;
 			}
 		}
-		
+
 		// Check entries
 
 		for (int key : fTable.keySet()) {
@@ -74,7 +74,11 @@ public class ProtocolTry3 implements IRoutingProtocol {
 			DataTable vector = new DataTable(2);
 			for (int dest : fTable.keySet()) {
 				if (dest != neighbour) {
-					vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
+					if (fTable.get(dest).link == neighbour) {
+						vector.addRow(new Integer[] { dest, 10000000 });
+					} else {
+						vector.addRow(new Integer[] { dest, fTable.get(dest).cost });
+					}
 				}
 			}
 			Packet p = new Packet(myAddress, neighbour, vector);
@@ -84,7 +88,6 @@ public class ProtocolTry3 implements IRoutingProtocol {
 		dt.addRow(new Integer[] { myAddress, 0 });
 		Packet p = new Packet(myAddress, 0, dt);
 		linkLayer.transmit(p);
-		
 
 		// deleting expired entries
 
